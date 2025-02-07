@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
 
 	"github.com/Ozoniuss/hangcounts/config"
 	"github.com/Ozoniuss/hangcounts/domain"
+	"github.com/Ozoniuss/hangcounts/infrastructure"
 )
 
 type HangoutsService struct {
@@ -36,9 +38,18 @@ func run() error {
 	logger := slog.New(handler)
 
 	logger.Info("read application mode", slog.String("env", config.Env))
+
+	ctx := context.Background()
+
+	pgStore, err := infrastructure.NewPostgresStore(ctx, config.Database)
+	if err != nil {
+		return fmt.Errorf("could not create a postgres store: %w", err)
+	}
+	logger.Info("connected to postgres database", slog.String("host", config.Database.Host), slog.Int("port", config.Database.Port))
+
 	logger.Info("starting app")
 
-	fmt.Println(config)
+	fmt.Println(config, pgStore)
 	return nil
 }
 
