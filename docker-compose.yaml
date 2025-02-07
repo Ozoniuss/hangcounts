@@ -1,0 +1,26 @@
+version: '3.9'
+
+services:
+
+  db:
+    image: postgres:17.2
+    container_name: hangcounts_dev_db
+    restart: unless-stopped
+    shm_size: 128mb
+    environment:
+        POSTGRES_USER: ${HANGCOUNTS_POSTGRES_USER}
+        POSTGRES_PASSWORD: ${HANGCOUNTS_POSTGRES_PASSWORD}
+        POSTGRES_DB: ${HANGCOUNTS_POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - hangcounts_dev_db:/var/lib/postgresql/data
+    networks:
+      - hangcounts_local
+
+volumes:
+  hangcounts_dev_db:
+
+networks:
+  hangcounts_local:
+    driver: bridge
