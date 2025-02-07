@@ -38,6 +38,9 @@ func run() error {
 	logger := slog.New(handler)
 
 	logger.Info("read application mode", slog.String("env", config.Env))
+	if config.Database.ShowConfig {
+		logger.Debug("database config", slog.Any("config", config.Database))
+	}
 
 	ctx := context.Background()
 

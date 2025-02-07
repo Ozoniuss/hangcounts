@@ -8,11 +8,12 @@ import (
 )
 
 type PostgresConfig struct {
-	User     string
-	Password string
-	DbName   string
-	Host     string
-	Port     int
+	User       string
+	Password   string
+	DbName     string
+	Host       string
+	Port       int
+	ShowConfig bool
 }
 
 func newPostgresConfig() (PostgresConfig, error) {
@@ -21,6 +22,7 @@ func newPostgresConfig() (PostgresConfig, error) {
 	db := os.Getenv("HANGCOUNTS_POSTGRES_DB")
 	host := os.Getenv("HANGCOUNTS_POSTGRES_HOST")
 	portstr := os.Getenv("HANGCOUNTS_POSTGRES_PORT")
+	showConfigStr := os.Getenv("HANGCOUNTS_POSTGRES_SHOW_CONFIG")
 
 	// let the condition below catch this failure
 	port, _ := strconv.Atoi(portstr)
@@ -29,12 +31,18 @@ func newPostgresConfig() (PostgresConfig, error) {
 		return PostgresConfig{}, errors.New("empty postgres config")
 	}
 
+	showConfig := false
+	if showConfigStr == "true" {
+		showConfig = true
+	}
+
 	return PostgresConfig{
-		User:     user,
-		Password: pw,
-		DbName:   db,
-		Host:     host,
-		Port:     port,
+		User:       user,
+		Password:   pw,
+		DbName:     db,
+		Host:       host,
+		Port:       port,
+		ShowConfig: showConfig,
 	}, nil
 }
 

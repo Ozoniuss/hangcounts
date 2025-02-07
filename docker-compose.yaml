@@ -1,6 +1,17 @@
 version: '3.9'
 
 services:
+  web:
+    build:
+      context: .
+    container_name: hangcounts-web
+    env_file:
+      - ./.compose.env
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - hangcounts_local
 
   db:
     image: postgres:17.2
@@ -17,6 +28,15 @@ services:
       - hangcounts_dev_db:/var/lib/postgresql/data
     networks:
       - hangcounts_local
+    healthcheck:
+      test: 
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
+        ]
+      interval: 2s
+      timeout: 3s
+      retries: 3
 
 volumes:
   hangcounts_dev_db:
