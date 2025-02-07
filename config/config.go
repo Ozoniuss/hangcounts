@@ -2,7 +2,9 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"os"
+	"strconv"
 )
 
 type PostgresConfig struct {
@@ -28,6 +30,7 @@ func newPostgresConfig() (PostgresConfig, error) {
 }
 
 type AppConfig struct {
+	Env      string
 	Database PostgresConfig
 }
 
@@ -38,10 +41,16 @@ func NewAppConfig() (AppConfig, error) {
 		cfgErr = errors.Join(cfgErr, err)
 	}
 
+	env := os.Getenv("HANGCOUNTS_ENV")
+	if env != "dev" && env != "prod" {
+		cfgErr = errors.Join(cfgErr, fmt.Errorf("invalid env value %s: must be \"dev\" or \"prod\"", strconv.Quote(env)))
+	}
+
 	if cfgErr != nil {
 		return AppConfig{}, cfgErr
 	}
 	return AppConfig{
 		Database: pgconfig,
+		Env:      env,
 	}, nil
 }

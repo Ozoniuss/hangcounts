@@ -25,6 +25,19 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("could not read config: %w", err)
 	}
+
+	logopts := &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}
+	if config.Env == "dev" {
+		logopts.Level = slog.LevelDebug
+	}
+	handler := slog.NewJSONHandler(os.Stdout, nil)
+	logger := slog.New(handler)
+
+	logger.Info("read application mode", slog.String("env", config.Env))
+	logger.Info("starting app")
+
 	fmt.Println(config)
 	return nil
 }
