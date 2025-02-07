@@ -34,7 +34,7 @@ func run() error {
 	if config.Env == "dev" {
 		logopts.Level = slog.LevelDebug
 	}
-	handler := slog.NewJSONHandler(os.Stdout, nil)
+	handler := slog.NewJSONHandler(os.Stdout, logopts)
 	logger := slog.New(handler)
 
 	logger.Info("read application mode", slog.String("env", config.Env))
@@ -46,6 +46,7 @@ func run() error {
 		return fmt.Errorf("could not create a postgres store: %w", err)
 	}
 	logger.Info("connected to postgres database", slog.String("host", config.Database.Host), slog.Int("port", config.Database.Port))
+	logger.Debug("pool configuration", slog.Any("config", fmt.Sprintf("%+v", pgStore.Conn.Config())))
 
 	logger.Info("starting app")
 

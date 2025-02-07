@@ -5,11 +5,11 @@ import (
 	"fmt"
 
 	"github.com/Ozoniuss/hangcounts/config"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type PostgresStore struct {
-	Conn *pgx.Conn
+	Conn *pgxpool.Pool
 }
 
 func NewPostgresStore(ctx context.Context, cfg config.PostgresConfig) (*PostgresStore, error) {
@@ -20,11 +20,11 @@ func NewPostgresStore(ctx context.Context, cfg config.PostgresConfig) (*Postgres
 		cfg.User,
 		cfg.Password,
 		cfg.DbName)
-	connCfg, err := pgx.ParseConfig(dsn)
+	connCfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse dsn: %w", err)
 	}
-	conn, err := pgx.ConnectConfig(ctx, connCfg)
+	conn, err := pgxpool.NewWithConfig(ctx, connCfg)
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to database: %w", err)
 	}
