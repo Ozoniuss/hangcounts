@@ -2,12 +2,21 @@ PG_CLIENT_VERSION=17
 
 .PHONY: all install-dev install-pg-client 
 
+new-migration:
+	./.bin/migrate create -ext .sql -dir migrations $(name)
+
 ## Default installation target
 all: install-dev
 
 ## Install dev tools
-install-dev: install-pg-client
+install-dev: install-pg-client install-go-migrate
 
 install-pg-client:
 	@echo "Installing PostgreSQL client for Linux..."
 	sudo apt update && sudo apt install -y postgresql-client postgresql-client-common
+
+# I would've included it inside go tool but honestly it has too many dependencies
+# that I don't want in the go project
+install-go-migrate:
+	@echo "Installing golang-migrate for Linux..."
+	curl -L --silent https://github.com/golang-migrate/migrate/releases/download/v4.18.2/migrate.linux-amd64.tar.gz | tar xvz --directory .bin migrate
