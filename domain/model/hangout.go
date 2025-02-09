@@ -1,46 +1,23 @@
-package domain
+package model
 
 import (
 	"errors"
-	"net/mail"
 	"time"
 )
 
-type IndividualId uint64
 type HangoutId uint64
-
-type Email string
 type Minutes int
 
-var ErrInvalidEmail = errors.New("invalid email")
-var ErrNegativeMinutes = errors.New("duration cannot be negative")
-
-func newEmail(address string) (Email, error) {
-	parsed, err := mail.ParseAddress(address)
-	if err != nil {
-		return Email(""), ErrInvalidEmail
-	}
-
-	return Email(parsed.Address), nil
-}
-
-func newMinute(d int) (Minutes, error) {
+func NewMinute(d int) (Minutes, error) {
 	if d < 0 {
-		return 0, ErrNegativeMinutes
+		return 0, errors.New("negative miuntes")
 	}
 	return Minutes(d), nil
 }
 
-type Individual struct {
-	Id       IndividualId
-	Name     string
-	Email    Email
-	Username string
-}
-
 type Hangout struct {
 	Id          HangoutId
-	Location    string
+	Location    NonemptyString
 	Description *string
 	Duration    Minutes
 	Date        time.Time

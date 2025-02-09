@@ -7,20 +7,8 @@ import (
 	"os"
 
 	"github.com/Ozoniuss/hangcounts/config"
-	"github.com/Ozoniuss/hangcounts/domain"
 	"github.com/Ozoniuss/hangcounts/infrastructure"
 )
-
-type HangoutsService struct {
-}
-
-func (h *HangoutsService) NewHangout(Atendees []domain.Individual) (domain.Hangout, error) {
-	return domain.Hangout{}, nil
-}
-
-func (h *HangoutsService) DeleteHangout(hangoutId uint64) (domain.Hangout, error) {
-	return domain.Hangout{}, nil
-}
 
 func run() error {
 	config, err := config.NewAppConfig()
