@@ -4,7 +4,20 @@ services:
   web:
     build:
       context: .
-    container_name: hangcounts-web
+    container_name: hangcounts_web
+    env_file:
+      - ./.compose.env
+    depends_on:
+      migratedb:
+        condition: service_completed_successfully
+    networks:
+      - hangcounts_local
+
+  # postgres has a feature to do this on its own but this supports more dbs
+  # and is what I'll use with kubernetes
+  migratedb:
+    image: migrate/migrate:v4.18.2
+    container_name: hangcounts_migrate_db
     env_file:
       - ./.compose.env
     depends_on:
@@ -12,12 +25,19 @@ services:
         condition: service_healthy
     networks:
       - hangcounts_local
-
+    volumes:
+      - ./migrations/:/migrations
+    command: >
+      -path /migrations/ 
+      -database "postgres://${HANGCOUNTS_POSTGRES_USER}:${HANGCOUNTS_POSTGRES_PASSWORD}@hangcounts_dev_db/${HANGCOUNTS_POSTGRES_DB}?sslmode=disable" 
+      up
   db:
     image: postgres:17.2
     container_name: hangcounts_dev_db
     restart: unless-stopped
     shm_size: 128mb
+    env_file:
+      - ./.compose.env
     environment:
         POSTGRES_USER: ${HANGCOUNTS_POSTGRES_USER}
         POSTGRES_PASSWORD: ${HANGCOUNTS_POSTGRES_PASSWORD}
@@ -32,7 +52,7 @@ services:
       test: 
         [
           "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
+          "pg_isready -U ${HANGCOUNTS_POSTGRES_USER} -d ${HANGCOUNTS_POSTGRES_DB}"
         ]
       interval: 2s
       timeout: 3s
