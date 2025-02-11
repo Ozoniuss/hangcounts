@@ -8,7 +8,6 @@ import (
 type IndividualId uint64
 
 type Email string
-type NonemptyString string
 
 func NewEmail(address string) (Email, error) {
 	parsed, err := mail.ParseAddress(address)

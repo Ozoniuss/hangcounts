@@ -17,7 +17,7 @@ func NewMinute(d int) (Minutes, error) {
 
 type Hangout struct {
 	Id          HangoutId
-	Location    NonemptyString
+	Location    string
 	Description *string
 	Duration    Minutes
 	Date        time.Time

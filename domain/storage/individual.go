@@ -1,14 +1,15 @@
 package storage
 
 import (
+	"context"
 	"errors"
 
 	"github.com/Ozoniuss/hangcounts/domain/model"
 )
 
 type Individuals interface {
-	StoreIndividual(model.Individual) error
-	GetIndividual(model.IndividualId) error
+	StoreIndividual(context.Context, model.Individual) error
+	GetIndividual(context.Context, model.IndividualId) error
 }
 
 // this can be enhanced with db-specific stuff

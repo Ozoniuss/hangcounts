@@ -1,6 +1,7 @@
 package aggregate
 
 import (
+	"context"
 	"errors"
 
 	"github.com/Ozoniuss/hangcounts/domain/model"
@@ -24,7 +25,7 @@ type IndividualAgg struct {
 	storage storage.Individuals
 }
 
-func (agg *IndividualAgg) NewIndividual(id uint64, name, email, username string) error {
+func (agg *IndividualAgg) CreateNewIndividualAccount(ctx context.Context, id uint64, name, email, username string) error {
 	var errs error
 
 	// may move those to their own time
@@ -49,7 +50,7 @@ func (agg *IndividualAgg) NewIndividual(id uint64, name, email, username string)
 		Email:    model.Email(_email),
 		Username: username,
 	}
-	err = agg.storage.StoreIndividual(agg.Individual)
+	err = agg.storage.StoreIndividual(ctx, agg.Individual)
 	if errors.Is(err, storage.ErrNotFound) {
 		return IndividualValidationError(ErrDuplicateUser)
 	}
