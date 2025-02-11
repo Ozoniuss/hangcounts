@@ -32,12 +32,11 @@ func run() error {
 
 	ctx := context.Background()
 
-	pgStore, err := infrastructure.NewPostgresStore(ctx, config.Database)
+	pgStore, err := infrastructure.NewPostgresStore(ctx, config.Database, logger)
 	if err != nil {
 		return fmt.Errorf("could not create a postgres store: %w", err)
 	}
 	logger.Info("connected to postgres database", slog.String("host", config.Database.Host), slog.Int("port", config.Database.Port))
-	logger.Debug("pool configuration", slog.Any("config", fmt.Sprintf("%+v", pgStore.Conn.Config())))
 
 	logger.Info("starting app")
 
