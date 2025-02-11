@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/Ozoniuss/hangcounts/config"
+	"github.com/Ozoniuss/hangcounts/domain/model"
+	"github.com/Ozoniuss/hangcounts/domain/storage"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -43,6 +46,22 @@ func NewPostgresStore(ctx context.Context, cfg config.PostgresConfig, logger *sl
 	}, nil
 }
 
-func (p *PostgresStore) StoreIndividual() {
+func (p *PostgresStore) StoreIndividual(ctx context.Context, individual model.Individual, createdAt, updatedAt, deletedAt *time.Time) error {
+	query := `
+		INSERT INTO individuals (id, name, email, username, created_at, updated_at, deleted_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7);
+	`
 
+	result, err := p.conn.Exec(ctx, query, individual.Id, individual.Name, individual.Email, individual.Username, createdAt, updatedAt, deletedAt)
+	if err != nil {
+		return fmt.Errorf("lol")
+	}
+
+	rows := result.RowsAffected()
+	if rows != 1 {
+		p.logger.ErrorContext(ctx, "expected one row to be affected when storing individual", slog.Int64("rows_affected", rows))
+		return storage.ErrUnknown
+	}
+
+	return err
 }

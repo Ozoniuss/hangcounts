@@ -15,3 +15,4 @@ type Individuals interface {
 // this can be enhanced with db-specific stuff
 var ErrAlreadyExists = errors.New("")
 var ErrNotFound = errors.New("")
+var ErrUnknown = errors.New("")
