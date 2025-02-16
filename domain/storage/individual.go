@@ -13,5 +13,7 @@ type Individuals interface {
 }
 
 // this can be enhanced with db-specific stuff
-var ErrAlreadyExists = errors.New("")
-var ErrNotFound = errors.New("")
+var ErrAlreadyExists = errors.New("record already exists")
+var ErrNotFound = errors.New("record is not found in database")
+var ErrDeleted = errors.New("record is soft-deleted")
+var ErrUnknown = errors.New("unknown database error")

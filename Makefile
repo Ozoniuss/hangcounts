@@ -20,3 +20,7 @@ install-pg-client:
 install-go-migrate:
 	@echo "Installing golang-migrate for Linux..."
 	curl -L --silent https://github.com/golang-migrate/migrate/releases/download/v4.18.2/migrate.linux-amd64.tar.gz | tar xvz --directory .bin migrate
+
+integration-tests:
+	chmod +x ./scripts/integration_tests.sh
+	./scripts/integration_tests.sh

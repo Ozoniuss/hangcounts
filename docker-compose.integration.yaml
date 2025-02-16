@@ -1,0 +1,50 @@
+version: '3.9'
+
+services:
+  # postgres has a feature to do this on its own but this supports more dbs
+  # and is what I'll use with kubernetes
+  migratedb:
+    image: migrate/migrate:v4.18.2
+    container_name: hangcounts_integration_tests_migration
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - hangcounts_integration_tests
+    volumes:
+      - ./migrations/:/migrations
+    command: >
+      -path /migrations/ 
+      -database "postgres://test:test@hangcounts_integration_tests_db/test?sslmode=disable" 
+      up
+  db:
+    image: postgres:17.2
+    container_name: hangcounts_integration_tests_db
+    restart: unless-stopped
+    shm_size: 128mb
+    environment:
+        POSTGRES_USER: test
+        POSTGRES_PASSWORD: test
+        POSTGRES_DB: test
+    ports:
+      - "5433:5432"
+    volumes:
+      - hangcounts_integration_tests_db:/var/lib/postgresql/data
+    networks:
+      - hangcounts_integration_tests
+    healthcheck:
+      test: 
+        [
+          "CMD-SHELL",
+          "pg_isready -U test -d test"
+        ]
+      interval: 2s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  hangcounts_integration_tests_db:
+
+networks:
+  hangcounts_integration_tests:
+    driver: bridge
