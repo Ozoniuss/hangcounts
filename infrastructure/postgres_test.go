@@ -20,12 +20,11 @@ type PostgresStoreTestSuite struct {
 }
 
 func TestPostgresStoreTestSuite(t *testing.T) {
-	// fmt.Println("a")
-	// if os.Getenv("HANGCOUNTS_RUN_INTEGRATION_TESTS") == "true" {
-	suite.Run(t, new(PostgresStoreTestSuite))
-	// } else {
-	// t.Skipf("Skipping integration tests, HANGCOUNTS_RUN_INTEGRATION_TESTS is not true")
-	// }
+	if os.Getenv("HANGCOUNTS_RUN_INTEGRATION_TESTS") == "true" {
+		suite.Run(t, new(PostgresStoreTestSuite))
+	} else {
+		t.Skipf("Skipping integration tests, HANGCOUNTS_RUN_INTEGRATION_TESTS is not true")
+	}
 }
 
 func (suite *PostgresStoreTestSuite) SetupSuite() {
