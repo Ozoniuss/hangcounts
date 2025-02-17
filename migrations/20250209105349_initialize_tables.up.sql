@@ -10,7 +10,7 @@ CREATE TABLE individuals (
 );
 
 -- used to query individual data when they log in
-CREATE INDEX idx_individuals_name ON individuals(name);
+CREATE INDEX idx_individuals_username ON individuals(username);
 CREATE INDEX idx_individuals_email ON individuals(email);
 
 CREATE TABLE hangouts (

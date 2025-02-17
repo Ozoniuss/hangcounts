@@ -56,21 +56,20 @@ func (suite *PostgresStoreTestSuite) SetupTest() {
 }
 
 func (suite *PostgresStoreTestSuite) TestGetIndividual_ReturnsCorrespondingError_IfIndividualIsNotFound() {
-	_, err := suite.pgStore.GetIndividual(suite.T().Context(), 1)
+	_, err := suite.pgStore.GetIndividual(suite.T().Context(), "username")
 	assert.ErrorIs(suite.T(), err, storage.ErrNotFound, "expected storage error if individual is not found")
 }
 func (suite *PostgresStoreTestSuite) TestStoreIndividual_ReturnsIndividualWithCorrectData() {
 
 	individual := model.Individual{
-		Id:       1,
+		Username: "username",
 		Name:     "name",
 		Email:    "email",
-		Username: "username",
 	}
 	err := suite.pgStore.StoreIndividual(suite.T().Context(), individual)
 	suite.Require().NoError(err, "expected no error when inserting individual")
 
-	ind, err := suite.pgStore.GetIndividual(suite.T().Context(), 1)
+	ind, err := suite.pgStore.GetIndividual(suite.T().Context(), "username")
 	suite.Require().NoError(err, "expected no error when retrieving individual")
 
 	assert.Equal(suite.T(), individual, ind, "expected stored and retrieved individual to match")
@@ -78,18 +77,17 @@ func (suite *PostgresStoreTestSuite) TestStoreIndividual_ReturnsIndividualWithCo
 
 func (suite *PostgresStoreTestSuite) TestDeleteIndividual_ReturnsNoError_IfIndividualExists() {
 	individual := model.Individual{
-		Id:       1,
+		Username: "username",
 		Name:     "name",
 		Email:    "email",
-		Username: "username",
 	}
 	err := suite.pgStore.StoreIndividual(suite.T().Context(), individual)
 	suite.Require().NoError(err, "expected no error when inserting individual")
 
-	err = suite.pgStore.DeleteIndividual(suite.T().Context(), 1)
+	err = suite.pgStore.DeleteIndividual(suite.T().Context(), "username")
 	suite.Require().NoError(err, "expected no error when deleting individual")
 
-	_, err = suite.pgStore.GetIndividual(suite.T().Context(), 1)
+	_, err = suite.pgStore.GetIndividual(suite.T().Context(), "username")
 	suite.Require().ErrorIs(err, storage.ErrDeleted, "expected deleted error if individual is soft-deleted")
 }
 
@@ -100,22 +98,21 @@ func (suite *PostgresStoreTestSuite) TestGetIndividual_ReturnsError_IfIndividual
 func (suite *PostgresStoreTestSuite) TestDeleteIndividual_ReturnsError_IfAlreadyDeleted() {
 
 	individual := model.Individual{
-		Id:       1,
+		Username: "username",
 		Name:     "name",
 		Email:    "email",
-		Username: "username",
 	}
 	err := suite.pgStore.StoreIndividual(suite.T().Context(), individual)
 	suite.Require().NoError(err, "expected no error when inserting individual")
 
-	err = suite.pgStore.DeleteIndividual(suite.T().Context(), 1)
+	err = suite.pgStore.DeleteIndividual(suite.T().Context(), "username")
 	suite.Require().NoError(err, "expected no error when deleting individual")
 
-	err = suite.pgStore.DeleteIndividual(suite.T().Context(), 1)
+	err = suite.pgStore.DeleteIndividual(suite.T().Context(), "username")
 	suite.Require().ErrorIs(err, storage.ErrDeleted, "expected deleted error if individual is soft-deleted")
 }
 
 func (suite *PostgresStoreTestSuite) TestDeleteIndividual_ReturnsError_IfIndividualDoesntExist() {
-	err := suite.pgStore.DeleteIndividual(suite.T().Context(), 1)
+	err := suite.pgStore.DeleteIndividual(suite.T().Context(), "username")
 	suite.Require().ErrorIs(err, storage.ErrNotFound, "expected error when individual is not in the database")
 }

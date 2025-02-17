@@ -45,10 +45,9 @@ func (agg *IndividualAgg) CreateNewIndividualAccount(ctx context.Context, id uin
 	}
 
 	agg.Individual = model.Individual{
-		Id:       model.IndividualId(id),
+		Username: model.IndividualId(username),
 		Name:     name,
 		Email:    model.Email(_email),
-		Username: username,
 	}
 	err = agg.storage.StoreIndividual(ctx, agg.Individual)
 	if errors.Is(err, storage.ErrNotFound) {

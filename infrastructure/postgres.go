@@ -51,12 +51,12 @@ func NewPostgresStore(ctx context.Context, cfg config.PostgresConfig, logger *sl
 
 func (p *PostgresStore) StoreIndividual(ctx context.Context, individual model.Individual) error {
 	query := `
-		INSERT INTO individuals (id, name, email, username, created_at)
-		VALUES ($1, $2, $3, $4, $5);
+		INSERT INTO individuals (name, email, username, created_at)
+		VALUES ($1, $2, $3, $4);
 	`
 
 	createdAt := time.Now()
-	result, err := p.conn.Exec(ctx, query, individual.Id, individual.Name, individual.Email, individual.Username, createdAt)
+	result, err := p.conn.Exec(ctx, query, individual.Name, individual.Email, individual.Username, createdAt)
 	if err != nil {
 		p.logger.ErrorContext(ctx, "failed to execute query", slog.Any("error", err))
 		return storage.ErrUnknown
@@ -71,28 +71,27 @@ func (p *PostgresStore) StoreIndividual(ctx context.Context, individual model.In
 	return nil
 }
 
-func (p *PostgresStore) GetIndividual(ctx context.Context, individualID model.IndividualId) (model.Individual, error) {
+func (p *PostgresStore) GetIndividual(ctx context.Context, individualUsername model.IndividualId) (model.Individual, error) {
 	query := `
-		SELECT id, name, email, username, created_at, updated_at, deleted_at
+		SELECT username, email, name, created_at, updated_at, deleted_at
 		FROM individuals
-		WHERE id=$1;
+		WHERE username=$1;
 	`
 
-	row := p.conn.QueryRow(ctx, query, individualID)
-	var id int64
+	row := p.conn.QueryRow(ctx, query, individualUsername)
+	var username string
 	var name string
 	var email string
-	var username string
 	var created_at, updated_at time.Time
 
 	var deleted_at sql.NullTime
 
-	err := row.Scan(&id, &name, &email, &username, &created_at, &updated_at, &deleted_at)
+	err := row.Scan(&username, &email, &name, &created_at, &updated_at, &deleted_at)
 	if errors.Is(err, pgx.ErrNoRows) {
-		p.logger.ErrorContext(ctx, "individual not found", slog.Int64("id", int64(individualID)))
+		p.logger.ErrorContext(ctx, "individual not found", slog.String("username", string(individualUsername)))
 		return model.Individual{}, storage.ErrNotFound
 	} else if err != nil {
-		p.logger.ErrorContext(ctx, "unknown error when retrieving individual", slog.Int64("id", int64(individualID)), slog.Any("error", err))
+		p.logger.ErrorContext(ctx, "unknown error when retrieving individual", slog.String("username", string(individualUsername)), slog.Any("error", err))
 		return model.Individual{}, storage.ErrUnknown
 	}
 
@@ -101,31 +100,30 @@ func (p *PostgresStore) GetIndividual(ctx context.Context, individualID model.In
 	}
 
 	return model.Individual{
-		Id:       model.IndividualId(id),
+		Username: model.IndividualId(username),
 		Name:     name,
 		Email:    model.Email(email),
-		Username: username,
 	}, nil
 }
 
-func (p *PostgresStore) DeleteIndividual(ctx context.Context, individualID model.IndividualId) error {
+func (p *PostgresStore) DeleteIndividual(ctx context.Context, individualUsername model.IndividualId) error {
 
 	selectQuery := `
-		SELECT id, deleted_at
+		SELECT username, deleted_at
 		FROM individuals
-		WHERE id=$1;
+		WHERE username=$1;
 	`
 
-	row := p.conn.QueryRow(ctx, selectQuery, individualID)
-	var id int64
+	row := p.conn.QueryRow(ctx, selectQuery, individualUsername)
+	var username string
 	var deleted_at sql.NullTime
 
-	err := row.Scan(&id, &deleted_at)
+	err := row.Scan(&username, &deleted_at)
 	if errors.Is(err, pgx.ErrNoRows) {
-		p.logger.ErrorContext(ctx, "individual not found", slog.Int64("id", int64(individualID)))
+		p.logger.ErrorContext(ctx, "individual not found", slog.String("username", string(individualUsername)))
 		return storage.ErrNotFound
 	} else if err != nil {
-		p.logger.ErrorContext(ctx, "unknown error", slog.Int64("id", int64(individualID)), slog.Any("error", err))
+		p.logger.ErrorContext(ctx, "unknown error", slog.String("username", string(individualUsername)), slog.Any("error", err))
 		return storage.ErrUnknown
 	}
 
@@ -137,11 +135,11 @@ func (p *PostgresStore) DeleteIndividual(ctx context.Context, individualID model
 	deleteQuery := `
 		UPDATE individuals
 		SET deleted_at=$2
-		WHERE id=$1;
+		WHERE username=$1;
 	`
 
 	deletedAt := time.Now()
-	result, err := p.conn.Exec(ctx, deleteQuery, individualID, deletedAt)
+	result, err := p.conn.Exec(ctx, deleteQuery, individualUsername, deletedAt)
 	if err != nil {
 		p.logger.ErrorContext(ctx, "failed to execute query", slog.Any("error", err))
 		return storage.ErrUnknown

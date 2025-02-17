@@ -5,7 +5,7 @@ import (
 	"net/mail"
 )
 
-type IndividualId uint64
+type IndividualId string
 
 type Email string
 
@@ -19,8 +19,7 @@ func NewEmail(address string) (Email, error) {
 }
 
 type Individual struct {
-	Id       IndividualId
 	Name     string
 	Email    Email
-	Username string
+	Username IndividualId
 }
