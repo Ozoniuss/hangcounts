@@ -64,11 +64,11 @@ func (p *PostgresStore) StoreIndividual(ctx context.Context, individual model.In
 
 	rows := result.RowsAffected()
 	if rows != 1 {
-		p.logger.ErrorContext(ctx, "expected one row to be affected when storing individual", slog.Int64("rows_affected", rows))
+		p.logger.ErrorContext(ctx, "expected one row to be affected", slog.Int64("rows_affected", rows))
 		return storage.ErrUnknown
 	}
 
-	return err
+	return nil
 }
 
 func (p *PostgresStore) GetIndividual(ctx context.Context, individualID model.IndividualId) (model.Individual, error) {
@@ -106,4 +106,52 @@ func (p *PostgresStore) GetIndividual(ctx context.Context, individualID model.In
 		Email:    model.Email(email),
 		Username: username,
 	}, nil
+}
+
+func (p *PostgresStore) DeleteIndividual(ctx context.Context, individualID model.IndividualId) error {
+
+	selectQuery := `
+		SELECT id, deleted_at
+		FROM individuals
+		WHERE id=$1;
+	`
+
+	row := p.conn.QueryRow(ctx, selectQuery, individualID)
+	var id int64
+	var deleted_at sql.NullTime
+
+	err := row.Scan(&id, &deleted_at)
+	if errors.Is(err, pgx.ErrNoRows) {
+		p.logger.ErrorContext(ctx, "individual not found", slog.Int64("id", int64(individualID)))
+		return storage.ErrNotFound
+	} else if err != nil {
+		p.logger.ErrorContext(ctx, "unknown error", slog.Int64("id", int64(individualID)), slog.Any("error", err))
+		return storage.ErrUnknown
+	}
+
+	// once deleted_at was populated do not allow any changes to the record
+	if deleted_at.Valid {
+		return storage.ErrDeleted
+	}
+
+	deleteQuery := `
+		UPDATE individuals
+		SET deleted_at=$2
+		WHERE id=$1;
+	`
+
+	deletedAt := time.Now()
+	result, err := p.conn.Exec(ctx, deleteQuery, individualID, deletedAt)
+	if err != nil {
+		p.logger.ErrorContext(ctx, "failed to execute query", slog.Any("error", err))
+		return storage.ErrUnknown
+	}
+
+	rows := result.RowsAffected()
+	if rows != 1 {
+		p.logger.ErrorContext(ctx, "expected one row to be affected", slog.Int64("rows_affected", rows))
+		return storage.ErrUnknown
+	}
+
+	return nil
 }
