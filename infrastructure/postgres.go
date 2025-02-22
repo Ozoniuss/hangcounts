@@ -18,8 +18,12 @@ import (
 )
 
 const (
-	CONSTRAINT_UNIQUE_INDIVIDUAL_USERNAME = "unique_individual_usernamename"
-	CONSTRAINT_UNIQUE_INDIVIDUAL_EMAIL    = "unique_individual_email"
+	CONSTRAINT_UNIQUE_INDIVIDUAL_USERNAME  = "unique_individual_usernamename"
+	CONSTRAINT_UNIQUE_INDIVIDUAL_EMAIL     = "unique_individual_email"
+	CONSTRAINT_UNIQUE_HANGOUT_PUBLIC_ID    = "unique_hangout_public_id"
+	CONSTRAINT_FOREIGN_KEY_HANGOUT_CREATOR = "fk_hangout_creator"
+	CONSTRAINT_FOREIGN_KEY_HANGOUT         = "fk_hangout"
+	CONSTRAINT_FOREIGN_KEY_INDIVIDUAL      = "fk_individual"
 )
 
 type PostgresStore struct {
@@ -75,9 +79,9 @@ func (p *PostgresStore) StoreIndividual(ctx context.Context, individual model.In
 			}
 			switch pgerr.ConstraintName {
 			case CONSTRAINT_UNIQUE_INDIVIDUAL_EMAIL:
-				return storage.ErrEmailAlreadyExists
+				return storage.ErrIndividualEmailAlreadyExists
 			case CONSTRAINT_UNIQUE_INDIVIDUAL_USERNAME:
-				return storage.ErrUsernameAlreadyExists
+				return storage.ErrIndividualUsernameAlreadyExists
 			}
 		}
 		return storage.ErrUnknown
@@ -170,6 +174,141 @@ func (p *PostgresStore) MarkIndividualAsDeleted(ctx context.Context, individualU
 	if rows != 1 {
 		p.logger.ErrorContext(ctx, "expected one row to be affected", slog.Int64("rows_affected", rows))
 		return storage.ErrUnknown
+	}
+
+	return nil
+}
+
+func (p *PostgresStore) StoreHangoutOfIndividuals(ctx context.Context, hangout model.Hangout) error {
+
+	queryHangoutIndividual := `
+		SELECT id, deleted_at
+		FROM individuals
+		WHERE username = $1;
+	`
+
+	queryHangoutDetails := `
+		INSERT INTO hangouts (public_id, location, description, duration_minutes, date, created_by, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id;
+	`
+
+	queryInsertParticipant := `
+		INSERT INTO hangout_individuals (hangout_id, individual_id, created_at)
+		VALUES ($1, $2, $3);
+	`
+	currentTimestamp := time.Now()
+
+	tx, err := p.conn.Begin(ctx)
+	if err != nil {
+		p.logger.ErrorContext(ctx, "failed to start a transaction", slog.Any("error", err))
+		return storage.ErrUnknown
+	}
+	defer func() {
+		err := tx.Rollback(ctx)
+		if err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			p.logger.ErrorContext(ctx, "failed to rollback transaction", slog.Any("error", err))
+		}
+	}()
+
+	row := tx.QueryRow(ctx, queryHangoutIndividual, hangout.CreatedBy)
+	var creatorId int
+	var creatorDeleted sql.NullTime
+
+	if err := row.Scan(&creatorId, &creatorDeleted); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			p.logger.ErrorContext(ctx, "hangout creator not found", slog.String("username", string(hangout.CreatedBy)))
+			return storage.ErrHangoutCreatorNotFound
+		}
+		p.logger.ErrorContext(ctx, "unknown error when retrieving creator", slog.String("username", string(hangout.CreatedBy)), slog.Any("error", err))
+		return storage.ErrUnknown
+	}
+	if creatorDeleted.Valid {
+		return storage.ErrHangoutCreatorDeleted
+	}
+
+	p.logger.Debug("retrieved creator", slog.Int("id", int(creatorId)), slog.Any("deleted_at", creatorDeleted))
+
+	var hangoutId int64
+	row = tx.QueryRow(ctx, queryHangoutDetails, hangout.PublicId, hangout.Location, hangout.Description, hangout.Duration, hangout.Date, creatorId, currentTimestamp)
+	if err = row.Scan(&hangoutId); err != nil {
+		p.logger.ErrorContext(ctx, "failed to execute hangout creation query", slog.Any("error", err))
+		var pgerr *pgconn.PgError
+		if errors.As(err, &pgerr) {
+			p.logger.DebugContext(ctx, "got pgerr", slog.String("error", fmt.Sprintf("%#v", pgerr)))
+			if pgerr.Code != pgerrcode.UniqueViolation && pgerr.Code != pgerrcode.ForeignKeyViolation {
+				return storage.ErrUnknown
+			}
+			switch pgerr.ConstraintName {
+			case CONSTRAINT_UNIQUE_HANGOUT_PUBLIC_ID:
+				return storage.ErrAlreadyExists
+			// depending on isolation level, this may be redundant, but
+			// in theory should never happen
+			case CONSTRAINT_FOREIGN_KEY_HANGOUT_CREATOR:
+				p.logger.WarnContext(ctx, "foreign key constraint violation in hangouts table")
+				return storage.ErrHangoutCreatorNotFound
+			}
+			return storage.ErrUnknown
+		}
+	}
+	p.logger.Debug("retrieved hangout", slog.Int64("hid", hangoutId))
+
+	// the database does not enforce the hangout to have at least one
+	// participant, nor does it enforce that the creator is part of the
+	// participant.
+	for _, participant := range hangout.Individuals {
+		row := tx.QueryRow(ctx, queryHangoutIndividual, participant)
+
+		var participantId int
+		var participantDeleted sql.NullTime
+		if err := row.Scan(&participantId, &participantDeleted); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				p.logger.ErrorContext(ctx, "hangout participant not found", slog.String("username", string(hangout.CreatedBy)))
+				return storage.ErrHangoutParticipantNotFound
+			}
+			p.logger.ErrorContext(ctx, "unknown error when retrieving creator", slog.String("username", string(hangout.CreatedBy)), slog.Any("error", err))
+			return storage.ErrUnknown
+		}
+		if participantDeleted.Valid {
+			return storage.ErrHangoutParticipantDeleted
+		}
+
+		p.logger.Debug("retrieved participant", slog.Int("id", int(participantId)), slog.Any("deleted_at", participantDeleted))
+
+		result, err := tx.Exec(ctx, queryInsertParticipant, hangoutId, participantId, currentTimestamp)
+		// depending on the isolation level, it might not be necessary to check those
+		if err != nil {
+			p.logger.ErrorContext(ctx, "failed to execute participant insertion query", slog.Any("error", err))
+			var pgerr *pgconn.PgError
+			if errors.As(err, &pgerr) {
+				p.logger.DebugContext(ctx, "got pgerr", slog.String("error", fmt.Sprintf("%#v", pgerr)))
+				if pgerr.Code != pgerrcode.ForeignKeyViolation {
+					return storage.ErrUnknown
+				}
+				// these may be redundant depending on isolation level, but
+				// in theory should never happen
+				switch pgerr.ConstraintName {
+				case CONSTRAINT_FOREIGN_KEY_HANGOUT:
+					p.logger.WarnContext(ctx, "foreign key constraint violation in hangout_individuals table", slog.String("constraint", CONSTRAINT_FOREIGN_KEY_HANGOUT))
+					return storage.ErrParticipantHangoutNotFound
+				case CONSTRAINT_FOREIGN_KEY_INDIVIDUAL:
+					p.logger.WarnContext(ctx, "foreign key constraint violation in hangout_individuals table", slog.String("constraint", CONSTRAINT_FOREIGN_KEY_INDIVIDUAL))
+					return storage.ErrParticipantIndividualNotFound
+				}
+			}
+			return storage.ErrUnknown
+		}
+
+		rows := result.RowsAffected()
+		if rows != 1 {
+			p.logger.ErrorContext(ctx, "expected one row to be affected", slog.Int64("rows_affected", rows))
+			return storage.ErrUnknown
+		}
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		p.logger.ErrorContext(ctx, "could not commit transaction", slog.Any("error", err))
 	}
 
 	return nil

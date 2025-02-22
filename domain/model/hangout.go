@@ -3,9 +3,11 @@ package model
 import (
 	"errors"
 	"time"
+
+	"github.com/google/uuid"
 )
 
-type HangoutId uint64
+type HangoutId uuid.UUID
 type Minutes int
 
 func NewMinute(d int) (Minutes, error) {
@@ -15,12 +17,16 @@ func NewMinute(d int) (Minutes, error) {
 	return Minutes(d), nil
 }
 
-type Hangout struct {
-	Id          HangoutId
+type HangoutDetails struct {
 	Location    string
 	Description *string
 	Duration    Minutes
 	Date        time.Time
+}
+
+type Hangout struct {
+	PublicId HangoutId
+	HangoutDetails
 
 	// Note that the use of Ids is deliberate. Hangouts are merely a collection
 	// of individuals and if an Individual deletes his account, the other

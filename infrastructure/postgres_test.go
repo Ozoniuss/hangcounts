@@ -2,13 +2,17 @@ package infrastructure
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/Ozoniuss/hangcounts/config"
 	"github.com/Ozoniuss/hangcounts/domain/model"
 	"github.com/Ozoniuss/hangcounts/domain/storage"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
@@ -92,7 +96,7 @@ func (suite *PostgresStoreTestSuite) TestStoreIndividual_ReturnsError_IfUsername
 
 	individual.Email = "other"
 	err = suite.pgStore.StoreIndividual(suite.T().Context(), individual)
-	assert.ErrorIs(suite.T(), err, storage.ErrUsernameAlreadyExists, "expected error if username is taken")
+	assert.ErrorIs(suite.T(), err, storage.ErrIndividualUsernameAlreadyExists, "expected error if username is taken")
 }
 
 func (suite *PostgresStoreTestSuite) TestStoreIndividual_ReturnsError_IfEmailConstraintIsViolated() {
@@ -107,7 +111,7 @@ func (suite *PostgresStoreTestSuite) TestStoreIndividual_ReturnsError_IfEmailCon
 
 	individual.Username = "other"
 	err = suite.pgStore.StoreIndividual(suite.T().Context(), individual)
-	assert.ErrorIs(suite.T(), err, storage.ErrEmailAlreadyExists, "expected error if email is taken")
+	assert.ErrorIs(suite.T(), err, storage.ErrIndividualEmailAlreadyExists, "expected error if email is taken")
 }
 
 func (suite *PostgresStoreTestSuite) TestDeleteIndividual_ReturnsNoError_IfIndividualExists() {
@@ -146,4 +150,127 @@ func (suite *PostgresStoreTestSuite) TestDeleteIndividual_ReturnsError_IfAlready
 func (suite *PostgresStoreTestSuite) TestDeleteIndividual_ReturnsError_IfIndividualDoesntExist() {
 	err := suite.pgStore.MarkIndividualAsDeleted(suite.T().Context(), "username")
 	suite.Require().ErrorIs(err, storage.ErrNotFound, "expected error when individual is not in the database")
+}
+
+func (suite *PostgresStoreTestSuite) TestStoreHangout_ReturnsError_WhenHangoutCreatorDoesntExist() {
+
+	currentDate := time.Now()
+	hangout := model.Hangout{
+		PublicId: model.HangoutId(uuid.New()),
+		HangoutDetails: model.HangoutDetails{
+			Description: func() *string { s := "description"; return &s }(),
+			Location:    "location",
+			Duration:    10,
+			Date:        currentDate,
+		},
+		CreatedBy: model.IndividualId("emil"),
+	}
+	err := suite.pgStore.StoreHangoutOfIndividuals(suite.T().Context(), hangout)
+	suite.Require().ErrorIs(err, storage.ErrHangoutCreatorNotFound, "expected error when creator doesn't exist")
+}
+
+func (suite *PostgresStoreTestSuite) TestStoreHangout_ReturnsError_WhenHangoutCreatorIsDeleted() {
+
+	individual := model.Individual{
+		Username: "creator",
+		Name:     "name",
+		Email:    "email",
+	}
+
+	err := suite.pgStore.StoreIndividual(suite.T().Context(), individual)
+	suite.Require().NoError(err, "expected no error when storing hangout creator")
+
+	err = suite.pgStore.MarkIndividualAsDeleted(suite.T().Context(), "creator")
+	suite.Require().NoError(err, "expected no error when soft deleting hangout creator")
+
+	currentDate := time.Now()
+	hangout := model.Hangout{
+		PublicId: model.HangoutId(uuid.New()),
+		HangoutDetails: model.HangoutDetails{
+			Description: func() *string { s := "description"; return &s }(),
+			Location:    "location",
+			Duration:    10,
+			Date:        currentDate,
+		},
+		CreatedBy: model.IndividualId("emil"),
+	}
+	err = suite.pgStore.StoreHangoutOfIndividuals(suite.T().Context(), hangout)
+	suite.Require().Error(err, "expected error when creator was soft deleted")
+}
+
+func (suite *PostgresStoreTestSuite) TestStoreHangout_ReturnsNoError_WhenCreatorIsValidAndThereAreNoParticipants() {
+
+	individual := model.Individual{
+		Username: "creator",
+		Name:     "name",
+		Email:    "email",
+	}
+	err := suite.pgStore.StoreIndividual(suite.T().Context(), individual)
+	suite.Require().NoError(err, "expected no error when storing hangout creator")
+
+	currentDate := time.Now()
+	hangout := model.Hangout{
+		PublicId: model.HangoutId(uuid.New()),
+		HangoutDetails: model.HangoutDetails{
+			Description: func() *string { s := "description"; return &s }(),
+			Location:    "location",
+			Duration:    10,
+			Date:        currentDate,
+		},
+		CreatedBy: model.IndividualId(individual.Username),
+	}
+	err = suite.pgStore.StoreHangoutOfIndividuals(suite.T().Context(), hangout)
+	suite.Require().NoError(err, "expected no error when creating a valid hangout")
+}
+
+func (suite *PostgresStoreTestSuite) TestStoreHangout_ReturnsNoError_WhenCreatorAndParticipantsExist() {
+
+	individualIds := make([]model.IndividualId, 0)
+	individual := model.Individual{
+		Username: "creator",
+		Name:     "name",
+		Email:    "email",
+	}
+	err := suite.pgStore.StoreIndividual(suite.T().Context(), individual)
+	suite.Require().NoError(err, "expected no error when storing hangout creator")
+	individualIds = append(individualIds, "creator")
+
+	participants := make([]model.Individual, 0, 10)
+	for i := range 10 {
+		participants = append(participants, model.Individual{
+			Name:     strconv.Itoa(i),
+			Username: model.IndividualId(strconv.Itoa(i)),
+			Email:    model.Email(strconv.Itoa(i)),
+		})
+	}
+	for i, p := range participants {
+		err := suite.pgStore.StoreIndividual(suite.T().Context(), p)
+		suite.Require().NoError(err, fmt.Sprintf("expected no error when storing participant %d", i))
+		individualIds = append(individualIds, p.Username)
+	}
+
+	currentDate := time.Now()
+	hangout := model.Hangout{
+		PublicId: model.HangoutId(uuid.New()),
+		HangoutDetails: model.HangoutDetails{
+			Description: func() *string { s := "description"; return &s }(),
+			Location:    "location",
+			Duration:    10,
+			Date:        currentDate,
+		},
+		CreatedBy:   model.IndividualId(individual.Username),
+		Individuals: individualIds,
+	}
+	err = suite.pgStore.StoreHangoutOfIndividuals(suite.T().Context(), hangout)
+	suite.Require().NoError(err, "expected no error when creating a valid hangout")
+}
+
+func (suite *PostgresStoreTestSuite) TestStoreHangout_ReturnsError_WhenAParticipantDoesntExist() {
+
+}
+func (suite *PostgresStoreTestSuite) TestStoreHangout_ReturnsError_WhenAParticipantIsDeleted() {
+
+}
+func (suite *PostgresStoreTestSuite) TestStoreHangout_ReturnsError_WhenAHangoutWithTheSamePublicIdExists() {
+
 }
