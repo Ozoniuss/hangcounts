@@ -11,8 +11,15 @@ import (
 	"github.com/Ozoniuss/hangcounts/config"
 	"github.com/Ozoniuss/hangcounts/domain/model"
 	"github.com/Ozoniuss/hangcounts/domain/storage"
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+const (
+	CONSTRAINT_UNIQUE_INDIVIDUAL_USERNAME = "unique_individual_usernamename"
+	CONSTRAINT_UNIQUE_INDIVIDUAL_EMAIL    = "unique_individual_email"
 )
 
 type PostgresStore struct {
@@ -57,8 +64,22 @@ func (p *PostgresStore) StoreIndividual(ctx context.Context, individual model.In
 
 	createdAt := time.Now()
 	result, err := p.conn.Exec(ctx, query, individual.Name, individual.Email, individual.Username, createdAt)
+
 	if err != nil {
 		p.logger.ErrorContext(ctx, "failed to execute query", slog.Any("error", err))
+		var pgerr *pgconn.PgError
+		if errors.As(err, &pgerr) {
+			p.logger.DebugContext(ctx, "got pgerr", slog.String("error", fmt.Sprintf("%#v", pgerr)))
+			if pgerr.Code != pgerrcode.UniqueViolation {
+				return storage.ErrUnknown
+			}
+			switch pgerr.ConstraintName {
+			case CONSTRAINT_UNIQUE_INDIVIDUAL_EMAIL:
+				return storage.ErrEmailAlreadyExists
+			case CONSTRAINT_UNIQUE_INDIVIDUAL_USERNAME:
+				return storage.ErrUsernameAlreadyExists
+			}
+		}
 		return storage.ErrUnknown
 	}
 
@@ -106,7 +127,7 @@ func (p *PostgresStore) GetIndividual(ctx context.Context, individualUsername mo
 	}, nil
 }
 
-func (p *PostgresStore) DeleteIndividual(ctx context.Context, individualUsername model.IndividualId) error {
+func (p *PostgresStore) MarkIndividualAsDeleted(ctx context.Context, individualUsername model.IndividualId) error {
 
 	selectQuery := `
 		SELECT username, deleted_at

@@ -1,12 +1,15 @@
 CREATE TABLE individuals (
     id          SERIAL PRIMARY KEY,
     name        TEXT,
-    email       TEXT UNIQUE NOT NULL,
-    username    TEXT UNIQUE NOT NULL,
+    email       TEXT NOT NULL,
+    username    TEXT NOT NULL,
 
     created_at  TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    deleted_at  TIMESTAMPTZ
+    deleted_at  TIMESTAMPTZ,
+
+    CONSTRAINT unique_individual_usernamename UNIQUE (username),
+    CONSTRAINT unique_individual_email        UNIQUE (email)
 );
 
 -- used to query individual data when they log in
@@ -15,7 +18,7 @@ CREATE INDEX idx_individuals_email ON individuals(email);
 
 CREATE TABLE hangouts (
     id               BIGSERIAL PRIMARY KEY,
-    public_id        UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,
+    public_id        UUID DEFAULT gen_random_uuid() NOT NULL,
     location         TEXT NOT NULL,
     description      TEXT,
     duration_minutes INT NOT NULL,
@@ -26,6 +29,7 @@ CREATE TABLE hangouts (
     updated_at  TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     deleted_at  TIMESTAMPTZ,
 
+    CONSTRAINT unique_hangout_public_id UNIQUE (public_id),
     CONSTRAINT fk_hangout_creator FOREIGN KEY (created_by) REFERENCES individuals (id) ON DELETE SET NULL
 );
 
