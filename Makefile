@@ -1,6 +1,6 @@
 PG_CLIENT_VERSION=17
 
-.PHONY: all install-dev install-pg-client 
+.PHONY: all install-dev install-pg-client
 
 new-migration:
 	./.bin/migrate create -ext .sql -dir migrations $(name)

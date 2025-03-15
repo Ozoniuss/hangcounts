@@ -28,8 +28,8 @@ services:
     volumes:
       - ./migrations/:/migrations
     command: >
-      -path /migrations/ 
-      -database "postgres://${HANGCOUNTS_POSTGRES_USER}:${HANGCOUNTS_POSTGRES_PASSWORD}@hangcounts_dev_db/${HANGCOUNTS_POSTGRES_DB}?sslmode=disable" 
+      -path /migrations/
+      -database "postgres://${HANGCOUNTS_POSTGRES_USER}:${HANGCOUNTS_POSTGRES_PASSWORD}@hangcounts_dev_db/${HANGCOUNTS_POSTGRES_DB}?sslmode=disable"
       up
   db:
     image: postgres:17.2
@@ -49,7 +49,7 @@ services:
     networks:
       - hangcounts_local
     healthcheck:
-      test: 
+      test:
         [
           "CMD-SHELL",
           "pg_isready -U ${HANGCOUNTS_POSTGRES_USER} -d ${HANGCOUNTS_POSTGRES_DB}"
