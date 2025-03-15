@@ -36,6 +36,9 @@ type Hangout struct {
 	// or participants remove their account, hangouts would work correctly with
 	// eventually consistent Individuals. (Reading Individual data is obviously
 	// functional under eventual consistency)
-	CreatedBy   IndividualId
+	CreatedBy IndividualId
+
+	// The creator must be part of the individuals. This should be enforced by
+	// the aggregate.
 	Individuals []IndividualId
 }

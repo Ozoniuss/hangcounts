@@ -311,5 +311,7 @@ func (p *PostgresStore) StoreHangoutOfIndividuals(ctx context.Context, hangout m
 		p.logger.ErrorContext(ctx, "could not commit transaction", slog.Any("error", err))
 	}
 
+	p.logger.InfoContext(ctx, "hangout created", slog.String("creator", string(hangout.CreatedBy)), slog.Any("participants", hangout.Individuals))
+
 	return nil
 }

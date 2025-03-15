@@ -24,11 +24,11 @@ type PostgresStoreTestSuite struct {
 }
 
 func TestPostgresStoreTestSuite(t *testing.T) {
-	if os.Getenv("HANGCOUNTS_RUN_INTEGRATION_TESTS") == "true" {
-		suite.Run(t, new(PostgresStoreTestSuite))
-	} else {
-		t.Skipf("Skipping integration tests, HANGCOUNTS_RUN_INTEGRATION_TESTS is not true")
-	}
+	// if os.Getenv("HANGCOUNTS_RUN_INTEGRATION_TESTS") == "true" {
+	suite.Run(t, new(PostgresStoreTestSuite))
+	// } else {
+	// t.Skipf("Skipping integration tests, HANGCOUNTS_RUN_INTEGRATION_TESTS is not true")
+	// }
 }
 
 func (suite *PostgresStoreTestSuite) SetupSuite() {
@@ -224,7 +224,6 @@ func (suite *PostgresStoreTestSuite) TestStoreHangout_ReturnsNoError_WhenCreator
 }
 
 func (suite *PostgresStoreTestSuite) TestStoreHangout_ReturnsNoError_WhenCreatorAndParticipantsExist() {
-
 	individualIds := make([]model.IndividualId, 0)
 	individual := model.Individual{
 		Username: "creator",
@@ -266,11 +265,120 @@ func (suite *PostgresStoreTestSuite) TestStoreHangout_ReturnsNoError_WhenCreator
 }
 
 func (suite *PostgresStoreTestSuite) TestStoreHangout_ReturnsError_WhenAParticipantDoesntExist() {
+	individualIds := make([]model.IndividualId, 0)
+	creator := model.Individual{
+		Username: "creator",
+		Name:     "name",
+		Email:    "email",
+	}
+	err := suite.pgStore.StoreIndividual(suite.T().Context(), creator)
+	suite.Require().NoError(err, "expected no error when storing hangout creator")
+	individualIds = append(individualIds, "creator")
 
+	participants := make([]model.Individual, 0, 10)
+	for i := range 10 {
+		participants = append(participants, model.Individual{
+			Name:     strconv.Itoa(i),
+			Username: model.IndividualId(strconv.Itoa(i)),
+			Email:    model.Email(strconv.Itoa(i)),
+		})
+	}
+
+	for i, p := range participants {
+		// do not store first participant
+		if i != 0 {
+			err := suite.pgStore.StoreIndividual(suite.T().Context(), p)
+			suite.Require().NoError(err, fmt.Sprintf("expected no error when storing participant %d", i))
+		}
+		// add the first participant as well
+		individualIds = append(individualIds, p.Username)
+	}
+
+	currentDate := time.Now()
+	hangout := model.Hangout{
+		PublicId: model.HangoutId(uuid.New()),
+		HangoutDetails: model.HangoutDetails{
+			Description: func() *string { s := "description"; return &s }(),
+			Location:    "location",
+			Duration:    10,
+			Date:        currentDate,
+		},
+		CreatedBy:   model.IndividualId(creator.Username),
+		Individuals: individualIds,
+	}
+	err = suite.pgStore.StoreHangoutOfIndividuals(suite.T().Context(), hangout)
+	suite.Require().ErrorIs(err, storage.ErrHangoutParticipantNotFound, "expected error when inserting a hangout where a participant is not in the database")
 }
+
 func (suite *PostgresStoreTestSuite) TestStoreHangout_ReturnsError_WhenAParticipantIsDeleted() {
+	individualIds := make([]model.IndividualId, 0)
+	individual := model.Individual{
+		Username: "creator",
+		Name:     "name",
+		Email:    "email",
+	}
+	err := suite.pgStore.StoreIndividual(suite.T().Context(), individual)
+	suite.Require().NoError(err, "expected no error when storing hangout creator")
+	individualIds = append(individualIds, "creator")
 
+	participants := make([]model.Individual, 0, 10)
+	for i := range 10 {
+		participants = append(participants, model.Individual{
+			Name:     strconv.Itoa(i),
+			Username: model.IndividualId(strconv.Itoa(i)),
+			Email:    model.Email(strconv.Itoa(i)),
+		})
+	}
+	for i, p := range participants {
+		err := suite.pgStore.StoreIndividual(suite.T().Context(), p)
+		suite.Require().NoError(err, fmt.Sprintf("expected no error when storing participant %d", i))
+		individualIds = append(individualIds, p.Username)
+	}
+	// Fourth participant exists in the database but is soft deleted
+	suite.pgStore.MarkIndividualAsDeleted(suite.T().Context(), participants[3].Username)
+
+	currentDate := time.Now()
+	hangout := model.Hangout{
+		PublicId: model.HangoutId(uuid.New()),
+		HangoutDetails: model.HangoutDetails{
+			Description: func() *string { s := "description"; return &s }(),
+			Location:    "location",
+			Duration:    10,
+			Date:        currentDate,
+		},
+		CreatedBy:   model.IndividualId(individual.Username),
+		Individuals: individualIds,
+	}
+	err = suite.pgStore.StoreHangoutOfIndividuals(suite.T().Context(), hangout)
+	suite.Require().ErrorIs(err, storage.ErrHangoutParticipantDeleted, "expected error when inserting a hangout where a participant is soft-deleted")
 }
-func (suite *PostgresStoreTestSuite) TestStoreHangout_ReturnsError_WhenAHangoutWithTheSamePublicIdExists() {
 
+func (suite *PostgresStoreTestSuite) TestStoreHangout_ReturnsError_WhenAHangoutWithTheSamePublicIdExists() {
+	individualIds := make([]model.IndividualId, 0)
+	individual := model.Individual{
+		Username: "creator",
+		Name:     "name",
+		Email:    "email",
+	}
+	err := suite.pgStore.StoreIndividual(suite.T().Context(), individual)
+	suite.Require().NoError(err, "expected no error when storing hangout creator")
+	individualIds = append(individualIds, "creator")
+
+	hangoutUuid := uuid.New()
+	currentDate := time.Now()
+	hangout := model.Hangout{
+		PublicId: model.HangoutId(hangoutUuid),
+		HangoutDetails: model.HangoutDetails{
+			Description: func() *string { s := "description"; return &s }(),
+			Location:    "location",
+			Duration:    10,
+			Date:        currentDate,
+		},
+		CreatedBy:   model.IndividualId(individual.Username),
+		Individuals: individualIds,
+	}
+	err = suite.pgStore.StoreHangoutOfIndividuals(suite.T().Context(), hangout)
+	suite.Require().NoError(err, "expected no error when inserting a valid hangout")
+	err = suite.pgStore.StoreHangoutOfIndividuals(suite.T().Context(), hangout)
+	suite.Require().ErrorIs(err, storage.ErrAlreadyExists, "expected an error when inserting a hangout with the same public id")
 }
