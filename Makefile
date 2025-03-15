@@ -1,6 +1,7 @@
 PG_CLIENT_VERSION=17
 
 .PHONY: all install-dev install-pg-client
+PROJECT_DIRECTORY := $(shell pwd)
 
 new-migration:
 	./.bin/migrate create -ext .sql -dir migrations $(name)
@@ -9,7 +10,7 @@ new-migration:
 all: install-dev
 
 ## Install dev tools
-install-dev: install-pg-client install-go-migrate
+install-dev: install-pg-client install-go-migrate install-staticcheck
 
 install-pg-client:
 	@echo "Installing PostgreSQL client for Linux..."
@@ -20,6 +21,10 @@ install-pg-client:
 install-go-migrate:
 	@echo "Installing golang-migrate for Linux..."
 	curl -L --silent https://github.com/golang-migrate/migrate/releases/download/v4.18.2/migrate.linux-amd64.tar.gz | tar xvz --directory .bin migrate
+
+install-staticcheck:
+	GOBIN="${PROJECT_DIRECTORY}/.bin" go install honnef.co/go/tools/cmd/staticcheck@v0.6.1
+	chmod +x "${PROJECT_DIRECTORY}/.bin/staticcheck"
 
 integration-tests:
 	chmod +x ./scripts/integration_tests.sh
