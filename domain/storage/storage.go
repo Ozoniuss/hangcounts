@@ -7,7 +7,7 @@ import (
 	"github.com/Ozoniuss/hangcounts/domain/model"
 )
 
-type Individuals interface {
+type AppStorage interface {
 	StoreIndividual(context.Context, model.Individual) error
 	GetIndividual(context.Context, model.IndividualId) error
 	MarkIndividualAsDeleted(context.Context, model.IndividualId) error

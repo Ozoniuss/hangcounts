@@ -22,7 +22,7 @@ var ErrNegativeMinutes = errors.New("duration cannot be negative")
 type IndividualAgg struct {
 	model.Individual
 
-	storage storage.Individuals
+	storage storage.AppStorage
 }
 
 func (agg *IndividualAgg) CreateNewIndividualAccount(ctx context.Context, id uint64, name, email, username string) error {
