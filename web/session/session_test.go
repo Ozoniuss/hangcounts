@@ -10,7 +10,7 @@ import (
 )
 
 func TestGenerateSessionId_ReturnsABase64EncodedSession(t *testing.T) {
-	s, err := generateSecureSessionId()
+	s, err := GenerateSecureSessionId()
 	assert.Nil(t, err, "expected no error when generating a session id")
 
 	b, err := base64.RawURLEncoding.DecodeString(s)
@@ -21,7 +21,7 @@ func TestGenerateSessionId_ReturnsABase64EncodedSession(t *testing.T) {
 func TestGenerateSessionId_Returns100DifferentSessions_WhenCallingTheGenerator100Times(t *testing.T) {
 	existing := make([]string, 100)
 	for i := range 100 {
-		s, err := generateSecureSessionId()
+		s, err := GenerateSecureSessionId()
 		assert.Nil(t, err, "expected no error when generating a session id")
 		assert.NotContains(t, existing, s)
 		existing[i] = s
@@ -35,8 +35,8 @@ func TestSessionManager_detectsNewSessionAsNotExpired(t *testing.T) {
 	m := NewSessionManager(nil, idleExp, absExp, "")
 
 	s := Session{
-		createdAt:      time.Now(),
-		lastActivityAt: time.Now(),
+		CreatedAt:    time.Now(),
+		LastAccessed: time.Now(),
 	}
 
 	assert.False(t, m.isExpired(s), "expected new session to not be expired")
@@ -49,8 +49,8 @@ func TestSessionManager_detectsSessionAsNotExpired_WhenIdleIsCloseToExpiration(t
 		m := NewSessionManager(nil, idleExp, absExp, "")
 
 		s := Session{
-			createdAt:      time.Now(),
-			lastActivityAt: time.Now(),
+			CreatedAt:    time.Now(),
+			LastAccessed: time.Now(),
 		}
 		time.Sleep(9 * time.Second)
 
@@ -65,12 +65,12 @@ func TestSessionManager_detectsSessionAsNotExpired_WhenCreatedForLongerThanIdle_
 		m := NewSessionManager(nil, idleExp, absExp, "")
 
 		s := Session{
-			createdAt:      time.Now(),
-			lastActivityAt: time.Now(),
+			CreatedAt:    time.Now(),
+			LastAccessed: time.Now(),
 		}
 		time.Sleep(9 * time.Second)
 
-		s.lastActivityAt = time.Now()
+		s.LastAccessed = time.Now()
 		time.Sleep(9 * time.Second)
 
 		assert.False(t, m.isExpired(s), "expected session to not be expired")
@@ -84,8 +84,8 @@ func TestSessionManager_detectsSessionAsExpired_WhenIdleExpiredIt(t *testing.T) 
 		m := NewSessionManager(nil, idleExp, absExp, "")
 
 		s := Session{
-			createdAt:      time.Now(),
-			lastActivityAt: time.Now(),
+			CreatedAt:    time.Now(),
+			LastAccessed: time.Now(),
 		}
 		time.Sleep(20 * time.Second)
 		assert.True(t, m.isExpired(s), "expected session to be expired")
@@ -99,11 +99,11 @@ func TestSessionManager_detectsSessionAsExpired_WhenAbsoluteExpiredIt_AndIdleDid
 		m := NewSessionManager(nil, idleExp, absExp, "")
 
 		s := Session{
-			createdAt:      time.Now(),
-			lastActivityAt: time.Now(),
+			CreatedAt:    time.Now(),
+			LastAccessed: time.Now(),
 		}
 		time.Sleep(9 * time.Second)
-		s.lastActivityAt = time.Now()
+		s.LastAccessed = time.Now()
 		time.Sleep(9 * time.Second)
 		assert.True(t, m.isExpired(s), "expected session to be expired")
 	})

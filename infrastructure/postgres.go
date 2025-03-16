@@ -11,6 +11,7 @@ import (
 	"github.com/Ozoniuss/hangcounts/config"
 	"github.com/Ozoniuss/hangcounts/domain/model"
 	"github.com/Ozoniuss/hangcounts/domain/storage"
+	"github.com/Ozoniuss/hangcounts/web/session"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -24,6 +25,7 @@ const (
 	CONSTRAINT_FOREIGN_KEY_HANGOUT_CREATOR = "fk_hangout_creator"
 	CONSTRAINT_FOREIGN_KEY_HANGOUT         = "fk_hangout"
 	CONSTRAINT_FOREIGN_KEY_INDIVIDUAL      = "fk_individual"
+	CONSTRAINT_FOREIGN_KEY_SESSION_USER    = "fk_session_user"
 )
 
 type PostgresStore struct {
@@ -313,5 +315,84 @@ func (p *PostgresStore) StoreHangoutOfIndividuals(ctx context.Context, hangout m
 
 	p.logger.InfoContext(ctx, "hangout created", slog.String("creator", string(hangout.CreatedBy)), slog.Any("participants", hangout.Individuals))
 
+	return nil
+}
+
+func (p *PostgresStore) StoreSession(ctx context.Context, sesh session.Session) error {
+
+	// use snapshot isolation level here I think
+	tx, err := p.conn.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel: pgx.Serializable,
+	})
+	if err != nil {
+		p.logger.ErrorContext(ctx, "failed to start a transaction", slog.Any("error", err))
+		return storage.ErrUnknown
+	}
+	defer func() {
+		err := tx.Rollback(ctx)
+		if err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			p.logger.ErrorContext(ctx, "failed to rollback transaction", slog.Any("error", err))
+		}
+	}()
+
+	queryIndividual := `
+		SELECT id, deleted_at
+		FROM individuals
+		WHERE username = $1;
+`
+
+	row := tx.QueryRow(ctx, queryIndividual, sesh.UserID)
+	var userId int
+	var userDeleted sql.NullTime
+
+	if err := row.Scan(&userId, &userDeleted); err != nil {
+		p.logger.ErrorContext(ctx, "could not retrieve user id", slog.Any("error", err))
+		if errors.Is(err, pgx.ErrNoRows) {
+			return session.ErrUserNotFound
+		}
+		return session.ErrUnknown
+	}
+	if userDeleted.Valid {
+		return session.ErrUserDeleted
+	}
+
+	querySession := `
+		INSERT INTO sessions (cookie, user_id, last_accessed, created_at)
+		VALUES ($1, $2, $3, $4);
+	`
+
+	result, err := p.conn.Exec(ctx, querySession, sesh.CookieValue, userId, sesh.LastAccessed, sesh.CreatedAt)
+	if err != nil {
+		p.logger.ErrorContext(ctx, "failed to execute query", slog.Any("error", err))
+		var pgerr *pgconn.PgError
+		if errors.As(err, &pgerr) {
+			p.logger.DebugContext(ctx, "got pgerr", slog.String("error", fmt.Sprintf("%#v", pgerr)))
+			if pgerr.Code == pgerrcode.StringDataRightTruncationDataException {
+				return session.ErrCookieInvalidLength
+			}
+			if pgerr.Code != pgerrcode.ForeignKeyViolation {
+				return session.ErrUnknown
+			}
+			if pgerr.ConstraintName != CONSTRAINT_FOREIGN_KEY_SESSION_USER {
+				p.logger.WarnContext(ctx, "unexpected foreign key violation", slog.String("fk", pgerr.ConstraintName))
+				return session.ErrUnknown
+			}
+			return session.ErrUserNotFound
+		}
+		return session.ErrUnknown
+	}
+
+	rows := result.RowsAffected()
+	if rows != 1 {
+		p.logger.ErrorContext(ctx, "expected one row to be affected", slog.Int64("rows_affected", rows))
+		return storage.ErrUnknown
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		p.logger.ErrorContext(ctx, "could not commit transaction", slog.Any("error", err))
+	}
+
+	p.logger.Info("created session for user", slog.String("username", string(sesh.UserID)))
 	return nil
 }

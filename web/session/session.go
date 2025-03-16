@@ -1,18 +1,19 @@
 package session
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"time"
 
 	"github.com/Ozoniuss/hangcounts/domain/model"
 	"github.com/Ozoniuss/hangcounts/domain/storage"
 )
 
-func generateSecureSessionId() (string, error) {
+func GenerateSecureSessionId() (string, error) {
 	id := make([]byte, 32)
 
 	_, err := io.ReadFull(rand.Reader, id)
@@ -27,23 +28,35 @@ const (
 	SESSION_COOKIE_NAME = "session_id"
 )
 
-type Session struct {
-	createdAt      time.Time
-	lastActivityAt time.Time
-	id             string
-	userID         model.IndividualId
-	logger         *slog.Logger
+type SessionStorage interface {
+	StoreSession(ctx context.Context, session Session) error
+	GetSession(ctx context.Context, cookie string) (Session, error)
+	UpdateLastAccessed(ctx context.Context, cookie string, lastAccessed string) error
 }
 
-func newSession() (Session, error) {
-	id, err := generateSecureSessionId()
+var ErrNotFound = errors.New("session not found in database")
+var ErrUnknown = errors.New("unknown error")
+var ErrUserNotFound = errors.New("user not found for session")
+var ErrUserDeleted = errors.New("attempted to create a session for a deleted user")
+var ErrCookieInvalidLength = errors.New("encoded cookie should have 44 characters")
+
+type Session struct {
+	CreatedAt    time.Time
+	LastAccessed time.Time
+	CookieValue  string
+	UserID       model.IndividualId
+}
+
+func NewSessionForUser(userId model.IndividualId) (Session, error) {
+	id, err := GenerateSecureSessionId()
 	if err != nil {
 		return Session{}, fmt.Errorf("failed to generate a session id: %w", err)
 	}
 	return Session{
-		id:             id,
-		createdAt:      time.Now(),
-		lastActivityAt: time.Now(),
+		CookieValue:  id,
+		CreatedAt:    time.Now(),
+		LastAccessed: time.Now(),
+		UserID:       userId,
 	}, nil
 }
 
@@ -69,6 +82,6 @@ func NewSessionManager(
 }
 
 func (m *SessionManager) isExpired(session Session) bool {
-	return time.Since(session.createdAt) > m.absoluteExpiration ||
-		time.Since(session.lastActivityAt) > m.idleExpiration
+	return time.Since(session.CreatedAt) > m.absoluteExpiration ||
+		time.Since(session.LastAccessed) > m.idleExpiration
 }

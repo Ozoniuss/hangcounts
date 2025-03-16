@@ -12,6 +12,7 @@ import (
 	"github.com/Ozoniuss/hangcounts/config"
 	"github.com/Ozoniuss/hangcounts/domain/model"
 	"github.com/Ozoniuss/hangcounts/domain/storage"
+	"github.com/Ozoniuss/hangcounts/web/session"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
@@ -381,4 +382,52 @@ func (suite *PostgresStoreTestSuite) TestStoreHangout_ReturnsError_WhenAHangoutW
 	suite.Require().NoError(err, "expected no error when inserting a valid hangout")
 	err = suite.pgStore.StoreHangoutOfIndividuals(suite.T().Context(), hangout)
 	suite.Require().ErrorIs(err, storage.ErrAlreadyExists, "expected an error when inserting a hangout with the same public id")
+}
+
+func (suite *PostgresStoreTestSuite) addUserForSession() model.IndividualId {
+	suite.T().Helper()
+	individual := model.Individual{
+		Username: "username",
+		Name:     "name",
+		Email:    "email",
+	}
+	err := suite.pgStore.StoreIndividual(suite.T().Context(), individual)
+	suite.Require().NoError(err, "expected no error when storing user for session")
+	return individual.Username
+}
+
+func (suite *PostgresStoreTestSuite) TestStoreSession_ReturnsNoError_WhenSessionIsValidAndIndividualExists() {
+	username := suite.addUserForSession()
+	sesh, err := session.NewSessionForUser(username)
+	suite.Require().NoError(err, "expected no error when defining session")
+	err = suite.pgStore.StoreSession(suite.T().Context(), sesh)
+	suite.Require().NoError(err, "expected no error when storing a session")
+}
+
+func (suite *PostgresStoreTestSuite) TestStoreSession_ReturnsError_WhenCookieLengthIsGreaterThan44() {
+	username := suite.addUserForSession()
+	sesh, err := session.NewSessionForUser(username)
+	suite.Require().NoError(err, "expected no error when defining session")
+
+	sesh.CookieValue += "ab=="
+	err = suite.pgStore.StoreSession(suite.T().Context(), sesh)
+	suite.Require().ErrorIs(err, session.ErrCookieInvalidLength, "expected error when storing a session")
+}
+
+func (suite *PostgresStoreTestSuite) TestStoreSession_ReturnsError_WhenUserIsNotInTheDatabase() {
+	sesh, err := session.NewSessionForUser("username")
+	suite.Require().NoError(err, "expected no error when defining session")
+	err = suite.pgStore.StoreSession(suite.T().Context(), sesh)
+	suite.Require().ErrorIs(err, session.ErrUserNotFound, "expected error when storing a session")
+}
+func (suite *PostgresStoreTestSuite) TestStoreSession_ReturnsError_WhenUserIsDeleted() {
+	username := suite.addUserForSession()
+	sesh, err := session.NewSessionForUser(username)
+	suite.Require().NoError(err, "expected no error when defining session")
+
+	err = suite.pgStore.MarkIndividualAsDeleted(suite.T().Context(), username)
+	suite.Require().NoError(err, "expected no error when marking user as deleted")
+
+	err = suite.pgStore.StoreSession(suite.T().Context(), sesh)
+	suite.Require().ErrorIs(err, session.ErrUserDeleted, "expected error when storing a session")
 }
