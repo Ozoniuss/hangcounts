@@ -34,7 +34,7 @@ jobs:
           go-version: '1.24'
 
       - name: Build
-        run: go test -v ./...
+        run: make unit-tests
 
   integration-test:
     runs-on: ubuntu-24.04

@@ -13,5 +13,5 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-env HANGCOUNTS_RUN_INTEGRATION_TESTS=true go test -v ./...
+env HANGCOUNTS_RUN_INTEGRATION_TESTS=true GOEXPERIMENT=synctest go test -v ./...
 exit $?

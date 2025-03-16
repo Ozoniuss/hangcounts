@@ -26,6 +26,9 @@ install-staticcheck:
 	GOBIN="${PROJECT_DIRECTORY}/.bin" go install honnef.co/go/tools/cmd/staticcheck@v0.6.1
 	chmod +x "${PROJECT_DIRECTORY}/.bin/staticcheck"
 
+unit-tests:
+	GOEXPERIMENT=synctest go test -v ./...
+
 integration-tests:
 	chmod +x ./scripts/integration_tests.sh
 	./scripts/integration_tests.sh
